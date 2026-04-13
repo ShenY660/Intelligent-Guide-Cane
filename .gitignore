@@ -1,5 +1,18 @@
-.pio
-.vscode/.browse.c_cpp.db*
-.vscode/c_cpp_properties.json
-.vscode/launch.json
-.vscode/ipch
+# Python
+__pycache__/
+*.pyc
+
+# Local configuration
+/web/local_config.py
+/微信小程序/config.local.js
+/硬件端/src/config.local.h
+
+# Generated files
+**/.pio/
+**/.vscode/c_cpp_properties.json
+**/.vscode/launch.json
+**/.vscode/ipch/
+
+# Optional scratch docs that should stay local
+/esp32-cam-platformio/test/
+/test/test/

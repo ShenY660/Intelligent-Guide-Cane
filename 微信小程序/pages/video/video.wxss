@@ -1,0 +1,67 @@
+.page {
+  min-height: 100vh;
+  padding: 24rpx;
+  background: #f5f7fa;
+  box-sizing: border-box;
+}
+
+.panel {
+  background: #ffffff;
+  border-radius: 20rpx;
+  padding: 24rpx;
+  box-shadow: 0 12rpx 30rpx rgba(0, 0, 0, 0.06);
+}
+
+.title {
+  font-size: 34rpx;
+  font-weight: 600;
+  color: #1f2937;
+}
+
+.subtitle {
+  margin-top: 12rpx;
+  font-size: 24rpx;
+  line-height: 1.6;
+  color: #6b7280;
+}
+
+.ip-input {
+  margin-top: 24rpx;
+  padding: 18rpx 20rpx;
+  border-radius: 14rpx;
+  background: #eef2f7;
+  font-size: 28rpx;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16rpx;
+  margin-top: 24rpx;
+}
+
+.status {
+  margin-top: 20rpx;
+  font-size: 26rpx;
+  color: #374151;
+}
+
+.url {
+  margin-top: 12rpx;
+  font-size: 22rpx;
+  color: #6b7280;
+  word-break: break-all;
+}
+
+.stream-card {
+  margin-top: 24rpx;
+  background: #111827;
+  border-radius: 20rpx;
+  overflow: hidden;
+  box-shadow: 0 12rpx 30rpx rgba(17, 24, 39, 0.15);
+}
+
+.stream-image {
+  width: 100%;
+  display: block;
+}
