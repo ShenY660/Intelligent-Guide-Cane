@@ -13,8 +13,15 @@ def _read_value(name: str, default: str = "") -> str:
     return str(globals().get(name, default))
 
 
+def _normalize_dashscope_key(value: str) -> str:
+    value = (value or "").strip()
+    if value and not value.startswith("sk-"):
+        return f"sk-{value}"
+    return value
+
+
 QWEATHER_API_KEY = _read_value("QWEATHER_API_KEY")
-AL_API_KEY = _read_value("AL_API_KEY")
+AL_API_KEY = _normalize_dashscope_key(_read_value("AL_API_KEY"))
 AMAP_API_KEY = _read_value("AMAP_API_KEY")
 
 DEFAULT_LOCATION = _read_value("DEFAULT_LOCATION", "120.07275000000001,30.30828611111111")

@@ -403,7 +403,7 @@ void performWakeWordInference()
   }
 
   // 打印推理结果
-  printInferenceResults(&result);
+  // printInferenceResults(&result);
 
   // 检查唤醒词
   checkWakeWordDetection(&result);
@@ -441,7 +441,7 @@ void checkWakeWordDetection(ei_impulse_result_t *result)
   // 首先检查音频能量是否足够（避免静音时的误触发）
   if (audioEnergy < MIN_AUDIO_ENERGY)
   {
-    ei_printf("[唤醒检测] 音频能量过低 (%u < %u)，跳过检测\n", audioEnergy, MIN_AUDIO_ENERGY);
+    // ei_printf("[唤醒检测] 音频能量过低 (%u < %u)，跳过检测\n", audioEnergy, MIN_AUDIO_ENERGY);
     return;
   }
   
@@ -1343,6 +1343,9 @@ void processVoiceRecognition(uint8_t *pcm_data, size_t recordingSize)
           // 成功解析JSON
           if (responseDoc.containsKey("response")) {
             textToSpeak = responseDoc["response"].as<String>();
+          } else if (responseDoc.containsKey("error")) {
+            textToSpeak = responseDoc["error"].as<String>();
+            ei_printf("[响应解析] 服务端返回错误信息，将直接播报\n");
           }
           
           // 检查是否是导航响应
@@ -1359,6 +1362,11 @@ void processVoiceRecognition(uint8_t *pcm_data, size_t recordingSize)
           // JSON解析失败，直接使用原始响应
           textToSpeak = response;
           ei_printf("[响应解析] JSON解析失败，使用原始响应\n");
+        }
+
+        if (textToSpeak.length() == 0) {
+          textToSpeak = "当前没有可播报的返回内容，请稍后重试。";
+          ei_printf("[响应解析] 未提取到可播报字段，使用兜底提示语\n");
         }
         
         if (textToSpeak.length() > 0) {

@@ -534,7 +534,7 @@ def chat():
 
         if not qwen_response:
             conversations[user_id].pop()
-            return jsonify({"error": "调用通义千问 API 失败，请稍后重试"}), 500
+            return jsonify({"response": "调用通义千问失败，请稍后重试。"}), 200
 
         conversations[user_id].append({"role": "assistant", "content": qwen_response})
         return handle_ai_response(user_id, qwen_response)
