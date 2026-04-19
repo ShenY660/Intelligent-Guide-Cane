@@ -1,7 +1,9 @@
 <view class="page">
   <view class="panel">
     <view class="title">ESP32-CAM 局域网视频</view>
-    <view class="subtitle">请填写摄像头在手机热点下获取到的 IP，例如 192.168.43.123</view>
+    <view class="subtitle">
+      请输入 ESP32-CAM 在当前局域网中的 IP。小程序页面会使用抓拍轮询的方式刷新画面。
+    </view>
 
     <input
       class="ip-input"
@@ -18,14 +20,17 @@
     </view>
 
     <view class="status">{{statusText}}</view>
-    <view class="url" wx:if="{{streamUrl}}">直播地址：{{streamUrl}}</view>
+    <view class="url" wx:if="{{captureUrl}}">抓拍地址：{{captureUrl}}</view>
+    <view class="url" wx:if="{{healthUrl}}">健康检查：{{healthUrl}}</view>
   </view>
 
   <view class="stream-card" wx:if="{{canPreview}}">
     <image
       class="stream-image"
-      src="{{streamUrl}}"
+      src="{{previewUrl}}"
       mode="widthFix"
+      bindload="onPreviewLoad"
+      binderror="onPreviewError"
       show-menu-by-longpress="{{true}}"
     />
   </view>

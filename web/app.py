@@ -9,7 +9,7 @@ from config import (
     AL_API_KEY,
     AMAP_API_KEY,
     DEFAULT_LOCATION,
-    DEFAULT_WEATHER_CITY,
+    QWEATHER_API_HOST,
     QWEATHER_API_KEY,
     get_missing_keys,
 )
@@ -25,9 +25,10 @@ ARRIVAL_DISTANCE_METERS = 20
 dashscope.api_key = AL_API_KEY or None
 
 CONFIG_LABELS = {
-    "QWEATHER_API_KEY": "和风天气 API Key",
+    "QWEATHER_API_KEY": "QWeather API Key",
+    "QWEATHER_API_HOST": "QWeather API Host",
     "AL_API_KEY": "DashScope API Key",
-    "AMAP_API_KEY": "高德地图 API Key",
+    "AMAP_API_KEY": "Amap API Key",
 }
 
 conversations = {}
@@ -74,6 +75,24 @@ def index():
     return "Hello World!"
 
 
+def resolve_user_id(payload=None):
+    payload = payload if isinstance(payload, dict) else {}
+
+    device_id = str(payload.get("device_id", "")).strip()
+    if device_id:
+        return device_id
+
+    device_id = (request.headers.get("X-Device-Id") or "").strip()
+    if device_id:
+        return device_id
+
+    device_id = (request.args.get("device_id") or "").strip()
+    if device_id:
+        return device_id
+
+    return request.remote_addr
+
+
 def build_config_error(*keys):
     missing = get_missing_keys(*keys)
     if not missing:
@@ -104,14 +123,15 @@ def normalize_weather_date(date_text):
 
 
 def get_city_id(city_name):
-    if not QWEATHER_API_KEY:
+    if get_missing_keys("QWEATHER_API_KEY", "QWEATHER_API_HOST"):
         return None
     try:
         response = requests.get(
-            "https://geoapi.qweather.com/v2/city/lookup",
+            f"{QWEATHER_API_HOST}/geo/v2/city/lookup",
+            headers={"X-QW-Api-Key": QWEATHER_API_KEY},
             params={
                 "location": city_name,
-                "key": QWEATHER_API_KEY,
+                "number": 1,
             },
             timeout=10,
         )
@@ -126,27 +146,28 @@ def get_city_id(city_name):
 
 
 def get_weather_forecast(city_id):
-    if not QWEATHER_API_KEY:
+    if get_missing_keys("QWEATHER_API_KEY", "QWEATHER_API_HOST"):
         return None
     try:
         response = requests.get(
-            "https://devapi.qweather.com/v7/weather/3d",
-            params={
-                "location": city_id,
-                "lang": "zh",
-                "unit": "m",
-                "key": QWEATHER_API_KEY,
-            },
+            f"http://t.weather.itboy.net/api/weather/city/{city_id}",
             timeout=10,
         )
         response.raise_for_status()
         data = response.json()
-        if data.get("code") == "200" and data.get("daily"):
-            return data["daily"]
+        if data.get("status") == 200 and data.get("data", {}).get("forecast"):
+            return data["data"]["forecast"][:3]
         return None
     except requests.RequestException as exc:
         print(f"[WEATHER] 获取天气预报失败: {exc}")
         return None
+
+
+def _clean_temperature_text(value):
+    value = (value or "").strip()
+    if " " in value:
+        value = value.split()[-1]
+    return value
 
 
 def format_weather_response(city_name, date_keyword, forecast_data):
@@ -166,8 +187,54 @@ def format_weather_response(city_name, date_keyword, forecast_data):
     )
 
 
+def _legacy_format_weather_response_compat(city_name, date_keyword, forecast_data):
+    index_map = {"浠婃棩": 0, "鏄庢棩": 1, "鍚庢棩": 2}
+    label_map = {"浠婃棩": "浠婂ぉ", "鏄庢棩": "鏄庡ぉ", "鍚庢棩": "鍚庡ぉ"}
+
+    index = index_map.get(date_keyword, 0)
+    if index >= len(forecast_data):
+        index = 0
+
+    item = forecast_data[index]
+    if "type" not in item:
+        return format_weather_response(city_name, date_keyword, forecast_data)
+
+    day_label = label_map.get(date_keyword, "浠婂ぉ")
+    low_text = _clean_temperature_text(item.get("low", ""))
+    high_text = _clean_temperature_text(item.get("high", ""))
+    notice = (item.get("notice") or "").strip()
+
+    response = f"{city_name}{day_label}{item.get('type', '')}，{low_text}到{high_text}"
+    if notice:
+        response += f"，{notice}"
+    return response
+
+
+def format_weather_response_compat(city_name, date_keyword, forecast_data):
+    if not forecast_data or "type" not in forecast_data[0]:
+        return format_weather_response(city_name, date_keyword, forecast_data)
+
+    index_map = {"今日": 0, "明日": 1, "后日": 2}
+    label_map = {"今日": "今天", "明日": "明天", "后日": "后天"}
+
+    index = index_map.get(date_keyword, 0)
+    if index >= len(forecast_data):
+        index = 0
+
+    item = forecast_data[index]
+    low_text = _clean_temperature_text(item.get("low", ""))
+    high_text = _clean_temperature_text(item.get("high", ""))
+    response = f"{city_name}{label_map.get(date_keyword, '今天')}{item.get('type', '')}，{low_text}到{high_text}"
+
+    notice = (item.get("notice") or "").strip()
+    if notice:
+        response += f"，{notice}"
+    return response
+
+
 def reverse_geocode(longitude, latitude):
     if not AMAP_API_KEY:
+        print("[GPS] Reverse geocode skipped: AMAP_API_KEY is missing")
         return None
     try:
         response = requests.get(
@@ -183,6 +250,10 @@ def reverse_geocode(longitude, latitude):
         response.raise_for_status()
         data = response.json()
         if data.get("status") != "1":
+            print(
+                f"[GPS] Reverse geocode failed | location={longitude},{latitude} "
+                f"info={data.get('info', '')} infocode={data.get('infocode', '')}"
+            )
             return None
 
         address_component = data.get("regeocode", {}).get("addressComponent", {})
@@ -193,7 +264,7 @@ def reverse_geocode(longitude, latitude):
             city = address_component.get("province", "")
 
         return {
-            "city": city or DEFAULT_WEATHER_CITY,
+            "city": city or "",
             "district": address_component.get("district", ""),
             "formatted_address": data.get("regeocode", {}).get("formatted_address", ""),
         }
@@ -208,7 +279,7 @@ def update_user_location(user_id, latitude, longitude):
         latest_locations[user_id] = {
             "latitude": latitude,
             "longitude": longitude,
-            "city": (regeo or {}).get("city", DEFAULT_WEATHER_CITY),
+            "city": (regeo or {}).get("city", ""),
             "district": (regeo or {}).get("district", ""),
             "formatted_address": (regeo or {}).get("formatted_address", ""),
             "updated_at": time.time(),
@@ -216,14 +287,17 @@ def update_user_location(user_id, latitude, longitude):
         return latest_locations[user_id]
 
 
-def get_user_location(user_id):
+def get_user_location(user_id, allow_stale=False):
     with location_lock:
         info = latest_locations.get(user_id)
         if not info:
             return None
-        if time.time() - info["updated_at"] > LOCATION_TIMEOUT:
-            return None
-        return dict(info)
+        info = dict(info)
+
+    if not allow_stale and time.time() - info["updated_at"] > LOCATION_TIMEOUT:
+        return None
+
+    return info
 
 
 def get_user_origin(user_id):
@@ -233,11 +307,11 @@ def get_user_origin(user_id):
     return f"{info['longitude']},{info['latitude']}"
 
 
-def get_user_city(user_id):
-    info = get_user_location(user_id)
-    if not info or not info.get("city"):
-        return DEFAULT_WEATHER_CITY
-    return info["city"]
+def get_user_city(user_id, allow_stale=True):
+    info = get_user_location(user_id, allow_stale=allow_stale)
+    if not info:
+        return ""
+    return (info.get("city") or "").strip()
 
 
 def get_destination_gps(destination):
@@ -416,15 +490,17 @@ def handle_ai_response(user_id, qwen_response):
         )
 
     if qwen_response.startswith("天气_"):
-        if get_missing_keys("QWEATHER_API_KEY"):
-            return config_error_response("QWEATHER_API_KEY")
+        if get_missing_keys("QWEATHER_API_KEY", "QWEATHER_API_HOST"):
+            return config_error_response("QWEATHER_API_KEY", "QWEATHER_API_HOST")
 
         parts = qwen_response.split("_", 2)
         city = parts[1].strip() if len(parts) > 1 else ""
         date_keyword = normalize_weather_date(parts[2] if len(parts) > 2 else "今日")
 
         if city in ("", "当前城市", "定位城市"):
-            city = get_user_city(user_id)
+            city = get_user_city(user_id, allow_stale=True)
+            if not city:
+                return jsonify({"response": "暂时还没有获取到当前城市，请等待定位成功后再询问天气。"})
 
         city_id = get_city_id(city)
         if not city_id:
@@ -434,7 +510,7 @@ def handle_ai_response(user_id, qwen_response):
         if not forecast_data:
             return jsonify({"response": f"获取{city}天气失败"})
 
-        return jsonify({"response": format_weather_response(city, date_keyword, forecast_data)})
+        return jsonify({"response": format_weather_response_compat(city, date_keyword, forecast_data)})
 
     if qwen_response == "退出导航":
         return handle_exit_navigation(user_id)
@@ -460,7 +536,7 @@ def receive_gps_data():
     except (TypeError, ValueError):
         return jsonify({"error": "Invalid latitude or longitude"}), 400
 
-    user_id = request.remote_addr
+    user_id = resolve_user_id(data)
     info = update_user_location(user_id, latitude, longitude)
     print(
         f"[GPS] {user_id} lat={latitude:.6f} lon={longitude:.6f} city={info['city']} district={info['district']}"
@@ -470,6 +546,7 @@ def receive_gps_data():
         jsonify(
             {
                 "message": "GPS data received successfully",
+                "device_id": user_id,
                 "city": info["city"],
                 "district": info["district"],
                 "formatted_address": info["formatted_address"],
@@ -479,17 +556,40 @@ def receive_gps_data():
     )
 
 
+@app.route("/gps/latest", methods=["GET"])
+def read_latest_gps():
+    user_id = resolve_user_id()
+    info = get_user_location(user_id)
+    if not info:
+        return jsonify({"error": "No recent GPS data", "device_id": user_id}), 404
+
+    return jsonify(
+        {
+            "device_id": user_id,
+            "latitude": info["latitude"],
+            "longitude": info["longitude"],
+            "city": info["city"],
+            "district": info["district"],
+            "formatted_address": info["formatted_address"],
+            "updated_at": info["updated_at"],
+            "age_seconds": max(0, int(time.time() - info["updated_at"])),
+        }
+    )
+
+
 @app.route("/weather", methods=["GET"])
 def read_weather():
-    user_id = request.remote_addr
+    user_id = resolve_user_id()
     city = request.args.get("city", "").strip()
     date_keyword = normalize_weather_date(request.args.get("date", "今日"))
 
-    if get_missing_keys("QWEATHER_API_KEY"):
-        return config_error_response("QWEATHER_API_KEY")
+    if get_missing_keys("QWEATHER_API_KEY", "QWEATHER_API_HOST"):
+        return config_error_response("QWEATHER_API_KEY", "QWEATHER_API_HOST")
 
     if not city:
-        city = get_user_city(user_id)
+        city = get_user_city(user_id, allow_stale=True)
+        if not city:
+            return jsonify({"error": "暂时还没有获取到当前城市", "device_id": user_id}), 404
 
     city_id = get_city_id(city)
     if not city_id:
@@ -503,7 +603,7 @@ def read_weather():
         {
             "city": city,
             "date": date_keyword,
-            "response": format_weather_response(city, date_keyword, forecast_data),
+            "response": format_weather_response_compat(city, date_keyword, forecast_data),
             "daily": forecast_data,
         }
     )
@@ -511,8 +611,9 @@ def read_weather():
 
 @app.route("/ai", methods=["POST"])
 def chat():
-    user_id = request.remote_addr
-    user_message = request.json.get("message") if request.is_json else None
+    payload = request.get_json(silent=True) if request.is_json else {}
+    user_id = resolve_user_id(payload)
+    user_message = payload.get("message") if isinstance(payload, dict) else None
     if not user_message:
         return jsonify({"error": "请求中缺少 'message' 字段"}), 400
 
@@ -545,7 +646,8 @@ def navigation_update():
     if get_missing_keys("AMAP_API_KEY"):
         return config_error_response("AMAP_API_KEY")
 
-    user_id = request.remote_addr
+    payload = request.get_json(silent=True) if request.is_json else {}
+    user_id = resolve_user_id(payload)
     result = update_navigation_session(user_id)
     if result:
         return jsonify(result), 200
@@ -554,7 +656,8 @@ def navigation_update():
 
 @app.route("/exit_navigation", methods=["POST"])
 def exit_navigation():
-    user_id = request.remote_addr
+    payload = request.get_json(silent=True) if request.is_json else {}
+    user_id = resolve_user_id(payload)
     return handle_exit_navigation(user_id)
 
 

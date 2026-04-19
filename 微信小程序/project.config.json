@@ -1,7 +1,7 @@
 {
-    "appid": "wx9fe51ee63d934146",
+    "appid": "YOUR_WECHAT_APPID",
     "compileType": "miniprogram",
-    "libVersion": "3.7.10",
+    "libVersion": "3.9.1",
     "packOptions": {
         "ignore": [],
         "include": []
@@ -18,11 +18,24 @@
             "ignore": [],
             "disablePlugins": [],
             "outputPath": ""
-        }
+        },
+        "compileWorklet": false,
+        "uglifyFileName": false,
+        "uploadWithSourceMap": true,
+        "packNpmManually": false,
+        "minifyWXSS": true,
+        "minifyWXML": true,
+        "localPlugins": false,
+        "disableUseStrict": false,
+        "useCompilerPlugins": false,
+        "condition": false,
+        "swc": false,
+        "disableSWC": true
     },
     "condition": {},
     "editorSetting": {
         "tabIndent": "insertSpaces",
         "tabSize": 4
-    }
+    },
+    "simulatorPluginLibVersion": {}
 }

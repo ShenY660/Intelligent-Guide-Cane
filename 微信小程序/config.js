@@ -1,15 +1,22 @@
 const defaults = {
   amapKey: '',
+  serverBaseUrl: '',
+  deviceId: '',
+  blindStickRefreshMs: 10000,
   defaultDestination: {
-    name: '华东交通大学',
-    longitude: 115.868517,
-    latitude: 28.742945
+    name: 'Example Destination',
+    longitude: 116.397428,
+    latitude: 39.90923
   },
   defaultBlindStick: {
-    name: '导盲杖',
-    longitude: 120.077711,
-    latitude: 30.305955
+    name: 'Guide Cane',
+    longitude: 116.397428,
+    latitude: 39.90923
   }
+}
+
+function isPlaceholder(value) {
+  return typeof value === 'string' && /(YOUR_|CHANGE_ME|XXXX)/i.test(value)
 }
 
 let localConfig = {}
@@ -20,4 +27,18 @@ try {
   localConfig = {}
 }
 
-module.exports = Object.assign({}, defaults, localConfig)
+const mergedConfig = Object.assign({}, defaults, localConfig)
+
+if (isPlaceholder(mergedConfig.amapKey)) {
+  mergedConfig.amapKey = ''
+}
+
+if (isPlaceholder(mergedConfig.serverBaseUrl)) {
+  mergedConfig.serverBaseUrl = ''
+}
+
+if (isPlaceholder(mergedConfig.deviceId)) {
+  mergedConfig.deviceId = ''
+}
+
+module.exports = mergedConfig
